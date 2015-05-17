@@ -44,9 +44,12 @@ extern struct kbase_device *pkbdev;
 /*  clk,vol,abb,min,max,down stay,time_in_state,pm_qos mem,pm_qos int,pm_qos cpu_kfc_min,pm_qos cpu_egl_max */
 static gpu_dvfs_info gpu_dvfs_table_default[] = {
 <<<<<<< HEAD
+<<<<<<< HEAD
 	{700, 1150000, 0, 98, 100, 1, 0, 825000, 400000, 1300000, 1300000},
 =======
 	{800, 1187500, 0, 98, 100, 1, 0, 825000, 400000, 1300000, 1300000},
+=======
+>>>>>>> 40b2dd6... STAHP CRASHING ANTUTU and missing file fixes
 	{730, 1187500, 0, 98, 99, 1, 0, 825000, 400000, 1300000, 1300000},
 	{700, 1150000, 0, 98, 99, 1, 0, 825000, 400000, 1300000, 1300000},
 	{667, 1150000, 0, 98, 99, 1, 0, 825000, 400000, 1300000, 1300000},
@@ -64,8 +67,13 @@ static int available_max_clock[] = {GPU_L2, GPU_L2, GPU_L0, GPU_L0, GPU_L0};
 
 static gpu_attribute gpu_config_attributes[] = {
 	{GPU_MAX_CLOCK, 700},
+<<<<<<< HEAD
 	{GPU_MAX_CLOCK_LIMIT, 600},
 	{GPU_MIN_CLOCK, 160},
+=======
+	{GPU_MAX_CLOCK_LIMIT, 700},
+	{GPU_MIN_CLOCK, 100},
+>>>>>>> 40b2dd6... STAHP CRASHING ANTUTU and missing file fixes
 	{GPU_DVFS_START_CLOCK, 266},
 	{GPU_DVFS_BL_CONFIG_CLOCK, 266},
 	{GPU_GOVERNOR_START_CLOCK_DEFAULT, 266},
