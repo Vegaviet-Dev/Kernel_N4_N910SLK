@@ -218,7 +218,6 @@ static ssize_t show_asv_table(struct device *dev, struct device_attribute *attr,
 }
 
 <<<<<<< HEAD
-<<<<<<< HEAD
 =======
 
 static ssize_t show_volt_table(struct device *dev, struct device_attribute *attr, char *buf)
@@ -286,8 +285,6 @@ static ssize_t set_volt_table(struct device *dev, struct device_attribute *attr,
 }
 
 >>>>>>> 5cb3981... GPU voltage tweak
-=======
->>>>>>> 40b2dd6... STAHP CRASHING ANTUTU and missing file fixes
 static int gpu_get_dvfs_table(struct exynos_context *platform, char *buf, size_t buf_size)
 {
 	int i, cnt = 0;

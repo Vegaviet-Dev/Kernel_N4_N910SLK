@@ -405,14 +405,10 @@ static void __init set_volt_table_CA15(void)
 		break;
 	default :
 <<<<<<< HEAD
-<<<<<<< HEAD
 		max_support_idx_CA15 = L6;	/* 1.9 GHz */
 =======
 		max_support_idx_CA15 = L4;	/* 2.1 GHz */
 >>>>>>> a696b32... Cpufreq: raise OC for A53 to 1.8GHz and for A57 to 2.1GHz
-=======
-		max_support_idx_CA15 = L4;	/* 2.1 GHz */
->>>>>>> 40b2dd6... STAHP CRASHING ANTUTU and missing file fixes
 	}
 
 	if (is_max_limit_sample() == 1)
