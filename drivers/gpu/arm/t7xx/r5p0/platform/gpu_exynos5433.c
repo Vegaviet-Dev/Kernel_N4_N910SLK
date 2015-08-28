@@ -43,14 +43,7 @@ extern struct kbase_device *pkbdev;
 
 /*  clk,vol,abb,min,max,down stay,time_in_state,pm_qos mem,pm_qos int,pm_qos cpu_kfc_min,pm_qos cpu_egl_max */
 static gpu_dvfs_info gpu_dvfs_table_default[] = {
-<<<<<<< HEAD
 	{700, 1150000, 0, 98, 100, 1, 0, 825000, 400000, 1300000, 1300000},
-=======
-	{800, 1187500, 0, 98, 100, 1, 0, 825000, 400000, 1300000, 1300000},
-	{730, 1187500, 0, 98, 99, 1, 0, 825000, 400000, 1300000, 1300000},
-	{700, 1150000, 0, 98, 99, 1, 0, 825000, 400000, 1300000, 1300000},
-	{667, 1150000, 0, 98, 99, 1, 0, 825000, 400000, 1300000, 1300000},
->>>>>>> 5cb3981... GPU voltage tweak
 	{600, 1150000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1300000},
 	{550, 1125000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1800000},
 	{500, 1075000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1800000},
@@ -77,32 +70,15 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_GOVERNOR_TABLE_SIZE_DEFAULT, GPU_DVFS_TABLE_LIST_SIZE(gpu_dvfs_table_default)},
 	{GPU_GOVERNOR_TABLE_SIZE_STATIC, GPU_DVFS_TABLE_LIST_SIZE(gpu_dvfs_table_default)},
 	{GPU_GOVERNOR_TABLE_SIZE_BOOSTER, GPU_DVFS_TABLE_LIST_SIZE(gpu_dvfs_table_default)},
-<<<<<<< HEAD
-=======
-	{GPU_GOVERNOR_INTERACTIVE_HIGHSPEED_CLOCK, 550},
-	{GPU_GOVERNOR_INTERACTIVE_HIGHSPEED_LOAD, 85},
-	{GPU_GOVERNOR_INTERACTIVE_HIGHSPEED_DELAY, 0},
->>>>>>> cb351b7... gpu: more tweaking
 	{GPU_DEFAULT_VOLTAGE, 937500},
 	{GPU_COLD_MINIMUM_VOL, 0},
 	{GPU_VOLTAGE_OFFSET_MARGIN, 37500},
 	{GPU_TMU_CONTROL, 1},
-<<<<<<< HEAD
 	{GPU_TEMP_THROTTLING1, 420},
 	{GPU_TEMP_THROTTLING2, 350},
 	{GPU_TEMP_THROTTLING3, 266},
 	{GPU_TEMP_THROTTLING4, 160},
-=======
-	{GPU_TEMP_THROTTLING1, 550},
-	{GPU_TEMP_THROTTLING2, 420},
-	{GPU_TEMP_THROTTLING3, 350},
-	{GPU_TEMP_THROTTLING4, 266},
-<<<<<<< HEAD
->>>>>>> c5d86ee... GPU temp threshold lessened
 	{GPU_TEMP_TRIPPING, 160},
-=======
-	{GPU_TEMP_TRIPPING, 266},
->>>>>>> cb351b7... gpu: more tweaking
 	{GPU_BOOST_MIN_LOCK, 0},
 	{GPU_BOOST_EGL_MIN_LOCK, 1300000},
 	{GPU_POWER_COEFF, 46}, /* all core on param */
@@ -116,7 +92,7 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_HWCNT_GATHERING, 1},
 	{GPU_HWCNT_GPR, 1},
 	{GPU_RUNTIME_PM_DELAY_TIME, 50},
-	{GPU_DVFS_POLLING_TIME, 30},
+	{GPU_DVFS_POLLING_TIME, 100},
 	{GPU_DEBUG_LEVEL, DVFS_WARNING},
 	{GPU_TRACE_LEVEL, TRACE_ALL},
 };
