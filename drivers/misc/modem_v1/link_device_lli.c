@@ -156,7 +156,7 @@ static bool check_link_status(struct mem_link_device *mld)
 
 static void pm_fail_cb(struct modem_link_pm *pm)
 {
-	modemctl_notify_event(MDM_CRASH_PM_FAIL);
+	modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 }
 
 static void pm_cp_fail_cb(struct modem_link_pm *pm)
@@ -176,7 +176,7 @@ static void pm_cp_fail_cb(struct modem_link_pm *pm)
 		if (mld->stop_pm)
 			mld->stop_pm(mld);
 
-		modemctl_notify_event(MDM_CRASH_PM_CP_FAIL);
+		modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 		return;
 	}
 

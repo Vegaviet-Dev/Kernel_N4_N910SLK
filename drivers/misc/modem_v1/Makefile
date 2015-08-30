@@ -6,12 +6,11 @@ obj-y += modem_main.o modem_variation.o modem_io_device.o modem_utils.o
 
 obj-$(CONFIG_LINK_DEVICE_MEMORY) += link_device_memory_main.o \
 				    link_device_memory_snapshot.o \
+				    link_device_memory_command.o \
 				    link_device_memory_flow_control.o \
 				    link_device_memory_debug.o
 
-obj-$(CONFIG_LINK_CONTROL_MSG_IOSM) += link_ctrlmsg_iosm.o
-obj-$(CONFIG_LINK_CONTROL_MSG_COMMAND) += link_ctrlmsg_command.o
-obj-$(CONFIG_LINK_DEVICE_WITH_SBD_ARCH) += link_device_memory_sbd.o
+obj-$(CONFIG_LINK_DEVICE_WITH_SBD_ARCH) += link_device_memory_sbd.o link_device_memory_iosm_msg.o
 
 obj-$(CONFIG_LINK_POWER_MANAGEMENT_WITH_FSM) += link_device_pm.o
 

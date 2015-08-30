@@ -45,6 +45,7 @@ struct wb_writeback_work {
 	unsigned int for_kupdate:1;
 	unsigned int range_cyclic:1;
 	unsigned int for_background:1;
+	unsigned int for_sync:1;	/* sync(2) WB_SYNC_ALL writeback */
 	enum wb_reason reason;		/* why was writeback initiated? */
 
 	struct list_head list;		/* pending work list */
@@ -456,9 +457,11 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	/*
 	 * Make sure to wait on the data before writing out the metadata.
 	 * This is important for filesystems that modify metadata on data
-	 * I/O completion.
+	 * I/O completion. We don't do it for sync(2) writeback because it has a
+	 * separate, external IO completion path and ->sync_fs for guaranteeing
+	 * inode metadata is written back correctly.
 	 */
-	if (wbc->sync_mode == WB_SYNC_ALL) {
+	if (wbc->sync_mode == WB_SYNC_ALL && !wbc->for_sync) {
 		int err = filemap_fdatawait(mapping);
 		if (ret == 0)
 			ret = err;
@@ -470,12 +473,28 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	 * write_inode()
 	 */
 	spin_lock(&inode->i_lock);
-	/* Clear I_DIRTY_PAGES if we've written out all dirty pages */
-	if (!mapping_tagged(mapping, PAGECACHE_TAG_DIRTY))
-		inode->i_state &= ~I_DIRTY_PAGES;
+
 	dirty = inode->i_state & I_DIRTY;
-	inode->i_state &= ~(I_DIRTY_SYNC | I_DIRTY_DATASYNC);
+	inode->i_state &= ~I_DIRTY;
+
+	/*
+	 * Paired with smp_mb() in __mark_inode_dirty().  This allows
+	 * __mark_inode_dirty() to test i_state without grabbing i_lock -
+	 * either they see the I_DIRTY bits cleared or we see the dirtied
+	 * inode.
+	 *
+	 * I_DIRTY_PAGES is always cleared together above even if @mapping
+	 * still has dirty pages.  The flag is reinstated after smp_mb() if
+	 * necessary.  This guarantees that either __mark_inode_dirty()
+	 * sees clear I_DIRTY_PAGES or we see PAGECACHE_TAG_DIRTY.
+	 */
+	smp_mb();
+
+	if (mapping_tagged(mapping, PAGECACHE_TAG_DIRTY))
+		inode->i_state |= I_DIRTY_PAGES;
+
 	spin_unlock(&inode->i_lock);
+
 	/* Don't write the inode if only I_DIRTY_PAGES was set */
 	if (dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) {
 		int err = write_inode(inode, wbc);
@@ -518,13 +537,16 @@ writeback_single_inode(struct inode *inode, struct bdi_writeback *wb,
 	}
 	WARN_ON(inode->i_state & I_SYNC);
 	/*
-	 * Skip inode if it is clean. We don't want to mess with writeback
-	 * lists in this function since flusher thread may be doing for example
-	 * sync in parallel and if we move the inode, it could get skipped. So
-	 * here we make sure inode is on some writeback list and leave it there
-	 * unless we have completely cleaned the inode.
+	 * Skip inode if it is clean and we have no outstanding writeback in
+	 * WB_SYNC_ALL mode. We don't want to mess with writeback lists in this
+	 * function since flusher thread may be doing for example sync in
+	 * parallel and if we move the inode, it could get skipped. So here we
+	 * make sure inode is on some writeback list and leave it there unless
+	 * we have completely cleaned the inode.
 	 */
-	if (!(inode->i_state & I_DIRTY))
+	if (!(inode->i_state & I_DIRTY) &&
+	    (wbc->sync_mode != WB_SYNC_ALL ||
+	     !mapping_tagged(inode->i_mapping, PAGECACHE_TAG_WRITEBACK)))
 		goto out;
 	inode->i_state |= I_SYNC;
 	spin_unlock(&inode->i_lock);
@@ -591,6 +613,7 @@ static long writeback_sb_inodes(struct super_block *sb,
 		.tagged_writepages	= work->tagged_writepages,
 		.for_kupdate		= work->for_kupdate,
 		.for_background		= work->for_background,
+		.for_sync		= work->for_sync,
 		.range_cyclic		= work->range_cyclic,
 		.range_start		= 0,
 		.range_end		= LLONG_MAX,
@@ -1066,10 +1089,8 @@ void wakeup_flusher_threads(long nr_pages, enum wb_reason reason)
 {
 	struct backing_dev_info *bdi;
 
-	if (!nr_pages) {
-		nr_pages = global_page_state(NR_FILE_DIRTY) +
-				global_page_state(NR_UNSTABLE_NFS);
-	}
+	if (!nr_pages)
+		nr_pages = get_nr_dirty_pages();
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(bdi, &bdi_list, bdi_list) {
@@ -1145,12 +1166,11 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 	}
 
 	/*
-	 * make sure that changes are seen by all cpus before we test i_state
-	 * -- mikulas
+	 * Paired with smp_mb() in __writeback_single_inode() for the
+	 * following lockless i_state test.  See there for details.
 	 */
 	smp_mb();
 
-	/* avoid the locking if we can */
 	if ((inode->i_state & flags) == flags)
 		return;
 
@@ -1190,6 +1210,8 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 			bool wakeup_bdi = false;
 			bdi = inode_to_bdi(inode);
 
+			spin_unlock(&inode->i_lock);
+			spin_lock(&bdi->wb.list_lock);
 			if (bdi_cap_writeback_dirty(bdi)) {
 				WARN(!test_bit(BDI_registered, &bdi->state),
 				     "bdi-%s not registered\n", bdi->name);
@@ -1204,8 +1226,6 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 					wakeup_bdi = true;
 			}
 
-			spin_unlock(&inode->i_lock);
-			spin_lock(&bdi->wb.list_lock);
 			inode->dirtied_when = jiffies;
 			list_move(&inode->i_wb_list, &bdi->wb.b_dirty);
 			spin_unlock(&bdi->wb.list_lock);
@@ -1377,6 +1397,7 @@ void sync_inodes_sb(struct super_block *sb)
 		.range_cyclic	= 0,
 		.done		= &done,
 		.reason		= WB_REASON_SYNC,
+		.for_sync	= 1,
 	};
 
 	/* Nothing to do? */

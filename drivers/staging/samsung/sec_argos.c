@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/cpumask.h>
+#include <linux/interrupt.h>
 #include <linux/sec_argos.h>
 
 #define ARGOS_NAME "argos"
@@ -88,8 +89,6 @@ struct argos {
 	bool hmpboost_enable;
 	bool argos_block;
 	struct blocking_notifier_head argos_notifier;
-	/* protect prev_level, qos, task/irq_hotplug_disable, hmpboost_enable */
-	struct mutex level_mutex;
 };
 
 struct argos_platform_data {
@@ -472,13 +471,11 @@ void argos_block_enable(char *req_name, bool set)
 
 	if (set) {
 		cnode->argos_block = true;
-		mutex_lock(&cnode->level_mutex);
 		argos_freq_unlock(dev_num);
 		argos_task_affinity_apply(dev_num, 0);
 		argos_irq_affinity_apply(dev_num, 0);
 		argos_hmpboost_apply(dev_num, 0);
 		cnode->prev_level = -1;
-		mutex_unlock(&cnode->level_mutex);
 	} else {
 		cnode->argos_block = false;
 	}
@@ -541,20 +538,10 @@ static int argos_pm_qos_notify(struct notifier_block *nfb,
 		}
 	}
 
-	/* decrease 1 level to match proper table */
+	/* decrese 1 level to match proper table */
 	level--;
 	if (!argos_blocked) {
 		if (level != prev_level) {
-			if (mutex_trylock(&cnode->level_mutex) == 0) {
-				/*
-				 * If the mutex is already locked, it means this argos
-				 * is being blocked or is handling another change.
-				 * We don't need to wait.
-				 */
-				pr_warn("%s: skip name:%s, speed:%ldMbps, prev level:%d, request level:%d\n",
-						__func__, cnode->desc, speed, prev_level, level);
-				goto out;
-			}
 			pr_info("%s: name:%s, speed:%ldMbps, prev level:%d, request level:%d\n",
 					__func__, cnode->desc, speed, prev_level, level);
 
@@ -588,13 +575,12 @@ static int argos_pm_qos_notify(struct notifier_block *nfb,
 			}
 
 			cnode->prev_level = level;
-			mutex_unlock(&cnode->level_mutex);
 		} else {
 			pr_debug("%s:same level (%d) is requested",
 				__func__, level);
 		}
 	}
-out:
+
 	return NOTIFY_OK;
 }
 
@@ -662,7 +648,6 @@ static int argos_parse_dt(struct device *dev)
 		cnode->hmpboost_enable = false;
 		cnode->argos_block = false;
 		cnode->prev_level = -1;
-		mutex_init(&cnode->level_mutex);
 		cnode->qos = devm_kzalloc(dev, sizeof(struct argos_pm_qos), GFP_KERNEL);
 		if (!cnode->qos) {
 			dev_err(dev, "Failed to allocate memory of qos\n");

@@ -326,7 +326,6 @@ static int ssp_probe(struct spi_device *spi)
 
 	mutex_init(&data->comm_mutex);
 	mutex_init(&data->pending_mutex);
-	mutex_init(&data->enable_mutex);
 
 	if (spi->dev.of_node == NULL) {
 		pr_err("[SSP] %s, function callback is null\n", __func__);

@@ -24,7 +24,6 @@
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "link_device_memory.h"
-#include "link_ctrlmsg_iosm.h"
 
 #ifdef GROUP_MEM_LINK_DEVICE
 /**
@@ -589,7 +588,7 @@ static enum hrtimer_restart sbd_tx_timer_func(struct hrtimer *timer)
 				mask = MASK_SEND_DATA;
 				continue;
 			} else {
-				modemctl_notify_event(MDM_CRASH_INVALID_RB);
+				modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 				need_schedule = false;
 				goto exit;
 			}
@@ -1114,7 +1113,7 @@ static void pass_skb_to_demux(struct mem_link_device *mld, struct sk_buff *skb)
 	if (unlikely(!iod)) {
 		mif_err("%s: ERR! No IOD for CH.%d\n", ld->name, ch);
 		dev_kfree_skb_any(skb);
-		modemctl_notify_event(MDD_CRASH_INVALID_IOD);
+		modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 		return;
 	}
 
@@ -1385,7 +1384,7 @@ static void pass_skb_to_net(struct mem_link_device *mld, struct sk_buff *skb)
 	if (unlikely(!priv)) {
 		mif_err("%s: ERR! No PRIV in skb@%p\n", ld->name, skb);
 		dev_kfree_skb_any(skb);
-		modemctl_notify_event(MDM_CRASH_INVALID_SKBCB);
+		modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 		return;
 	}
 
@@ -1393,7 +1392,7 @@ static void pass_skb_to_net(struct mem_link_device *mld, struct sk_buff *skb)
 	if (unlikely(!iod)) {
 		mif_err("%s: ERR! No IOD in skb@%p\n", ld->name, skb);
 		dev_kfree_skb_any(skb);
-		modemctl_notify_event(MDM_CRASH_INVALID_SKBIOD);
+		modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 		return;
 	}
 
@@ -1491,7 +1490,7 @@ static int rx_ipc_frames_from_rb(struct sbd_ring_buffer *rb)
 #ifdef DEBUG_MODEM_IF
 			panic("skb alloc failed.");
 #else
-			modemctl_notify_event(MDM_CRASH_NO_MEM);
+			modemctl_notify_event(MDM_EVENT_CP_FORCE_CRASH);
 #endif
 			break;
 		}
@@ -1758,7 +1757,7 @@ static int mem_init_comm(struct link_device *ld, struct io_device *iod)
 	if (atomic_read(&mld->cp_boot_done))
 		return 0;
 
-#ifdef CONFIG_LINK_CONTROL_MSG_IOSM
+#ifdef CONFIG_LINK_DEVICE_WITH_SBD_ARCH
 	if (mld->iosm) {
 		struct sbd_link_device *sl = &mld->sbd_link_dev;
 		struct sbd_ipc_device *sid = sbd_ch2dev(sl, iod->id);
@@ -1807,6 +1806,7 @@ static int mem_init_comm(struct link_device *ld, struct io_device *iod)
 	return 0;
 }
 
+#ifdef CONFIG_LINK_DEVICE_WITH_SBD_ARCH
 /**
 @brief		function for the @b terminate_comm method
 		in a link_device instance
@@ -1816,13 +1816,12 @@ static int mem_init_comm(struct link_device *ld, struct io_device *iod)
 */
 static void mem_terminate_comm(struct link_device *ld, struct io_device *iod)
 {
-#ifdef CONFIG_LINK_CONTROL_MSG_IOSM
 	struct mem_link_device *mld = to_mem_link_device(ld);
 
 	if (mld->iosm)
 		tx_iosm_message(mld, IOSM_A2C_CLOSE_CH, (u32 *)&iod->id);
-#endif
 }
+#endif
 
 /**
 @brief		function for the @b send method in a link_device instance
@@ -2499,13 +2498,14 @@ struct mem_link_device *mem_create_link_device(enum mem_iface_type type,
 		mld->dpram_magic = true;
 	}
 
-#ifdef CONFIG_LINK_CONTROL_MSG_IOSM
-	mld->iosm = true;
-	mld->cmd_handler = iosm_event_bh;
-	INIT_WORK(&mld->iosm_w, iosm_event_work);
-#else
-	mld->cmd_handler = mem_cmd_handler;
-#endif
+	if (mld->attrs & LINK_ATTR(LINK_ATTR_IOSM_MESSAGE)) {
+		mif_err("%s<->%s: MODEM_ATTR_IOSM_MESSAGE\n",
+			ld->name, modem->name);
+		mld->iosm = true;
+		mld->cmd_handler = iosm_event_bh;
+	} else {
+		mld->cmd_handler = mem_cmd_handler;
+	}
 
 	/*====================================================================*\
 		Initialize MEM locks, completions, bottom halves, etc
@@ -2526,6 +2526,8 @@ struct mem_link_device *mem_create_link_device(enum mem_iface_type type,
 #ifdef CONFIG_LINK_DEVICE_WITH_SBD_ARCH
 	hrtimer_init(&mld->sbd_tx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	mld->sbd_tx_timer.function = sbd_tx_timer_func;
+
+	INIT_WORK(&mld->iosm_w, iosm_event_work);
 #endif
 
 	/*

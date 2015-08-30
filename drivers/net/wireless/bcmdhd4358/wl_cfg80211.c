@@ -73,8 +73,6 @@
 #include <dhd_wlfc.h>
 #endif
 
-#include <linux/sec_debug.h>
-
 #ifdef WL11U
 #if !defined(WL_ENABLE_P2P_IF) && !defined(WL_CFG80211_P2P_DEV_IF)
 #error You should enable 'WL_ENABLE_P2P_IF' or 'WL_CFG80211_P2P_DEV_IF' \
@@ -11352,10 +11350,6 @@ static s32 wl_init_scan(struct bcm_cfg80211 *cfg)
 	cfg->scan_timeout.data = (unsigned long) cfg;
 	cfg->scan_timeout.function = wl_scan_timeout;
 
-#ifdef WL11U
-	cfg->iw_ie_len = 0; /* init interworking IE in probe request */
-#endif /* WL11U */
-
 	return err;
 }
 
@@ -11670,6 +11664,7 @@ static s32 wl_event_handler(void *data)
 	struct wl_event_q *e;
 	tsk_ctl_t *tsk = (tsk_ctl_t *)data;
 	bcm_struct_cfgdev *cfgdev = NULL;
+	unsigned long flags;
 
 	cfg = (struct bcm_cfg80211 *)tsk->parent;
 
@@ -11716,7 +11711,9 @@ static s32 wl_event_handler(void *data)
 			} else {
 				WL_DBG(("Unknown Event (%d): ignoring\n", e->etype));
 			}
+			flags = wl_lock_eq(cfg);
 			wl_put_event(e);
+			wl_unlock_eq(cfg, flags);
 		}
 		DHD_OS_WAKE_UNLOCK(cfg->pub);
 	}
@@ -11789,11 +11786,7 @@ static void wl_flush_eq(struct bcm_cfg80211 *cfg)
 	flags = wl_lock_eq(cfg);
 	while (!list_empty(&cfg->eq_list)) {
 		e = list_first_entry(&cfg->eq_list, struct wl_event_q, eq_list);
-		sec_debug_aux_log(SEC_DEBUG_AUXLOG_WIFI, "D:eq_list-0x%p lock:%p",
-			&e->eq_list, &cfg->eq_lock);
 		list_del(&e->eq_list);
-		sec_debug_aux_log(SEC_DEBUG_AUXLOG_WIFI, "F:eq_list-0x%p lock:%p",
-			&e->eq_list, &cfg->eq_lock);
 		kfree(e);
 	}
 	wl_unlock_eq(cfg, flags);
@@ -11811,10 +11804,7 @@ static struct wl_event_q *wl_deq_event(struct bcm_cfg80211 *cfg)
 	flags = wl_lock_eq(cfg);
 	if (likely(!list_empty_careful(&cfg->eq_list))) {
 		e = list_first_entry(&cfg->eq_list, struct wl_event_q, eq_list);
-		sec_debug_aux_log(SEC_DEBUG_AUXLOG_WIFI, "D:eq_list-0x%p lock:%p",
-			&e->eq_list, &cfg->eq_lock);
 		list_del(&e->eq_list);
-		
 	}
 	wl_unlock_eq(cfg, flags);
 
@@ -11834,28 +11824,23 @@ wl_enq_event(struct bcm_cfg80211 *cfg, struct net_device *ndev, u32 event,
 	uint32 evtq_size;
 	uint32 data_len;
 	unsigned long flags;
-	gfp_t aflags;
 
 	data_len = 0;
 	if (data)
 		data_len = ntoh32(msg->datalen);
 	evtq_size = sizeof(struct wl_event_q) + data_len;
-	aflags = (in_atomic()) ? GFP_ATOMIC : GFP_KERNEL;
-	e = kzalloc(evtq_size, aflags);
-	sec_debug_aux_log(SEC_DEBUG_AUXLOG_WIFI, "M:eq_list-0x%p lock:%p",
-			&e->eq_list, &cfg->eq_lock);
+	flags = wl_lock_eq(cfg);
+	e = kzalloc(evtq_size, GFP_ATOMIC);
 	if (unlikely(!e)) {
 		WL_ERR(("event alloc failed\n"));
+		wl_unlock_eq(cfg, flags);
 		return -ENOMEM;
 	}
 	e->etype = event;
 	memcpy(&e->emsg, msg, sizeof(wl_event_msg_t));
 	if (data)
 		memcpy(e->edata, data, data_len);
-	flags = wl_lock_eq(cfg);
 	list_add_tail(&e->eq_list, &cfg->eq_list);
-	sec_debug_aux_log(SEC_DEBUG_AUXLOG_WIFI, "A:eq_list-0x%p lock:%p",
-			&e->eq_list, &cfg->eq_lock);
 	wl_unlock_eq(cfg, flags);
 
 	return err;
@@ -11863,9 +11848,6 @@ wl_enq_event(struct bcm_cfg80211 *cfg, struct net_device *ndev, u32 event,
 
 static void wl_put_event(struct wl_event_q *e)
 {
-	sec_debug_aux_log(SEC_DEBUG_AUXLOG_WIFI, "F:eq_list-0x%p ",
-	        &e->eq_list);
-
 	kfree(e);
 }
 
@@ -12301,11 +12283,6 @@ static s32 __wl_cfg80211_up(struct bcm_cfg80211 *cfg)
 		}
 	}
 
-	err = wl_create_event_handler(cfg);
-	if (err) {
-		WL_ERR(("wl_create_event_handler failed\n"));
-		return err;
-	}
 	err = wl_init_scan(cfg);
 	if (err) {
 		WL_ERR(("wl_init_scan failed\n"));
@@ -12420,9 +12397,6 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 		if (p2p_net)
 			dev_close(p2p_net);
 #endif /* WL_CFG80211 && (WL_ENABLE_P2P_IF || WL_NEWCFG_PRIVCMD_SUPPORT) */
-	mutex_unlock(&cfg->usr_sync);
-	wl_destroy_event_handler(cfg);
-	mutex_lock(&cfg->usr_sync);
 	wl_flush_eq(cfg);
 	wl_link_down(cfg);
 	if (cfg->p2p_supported) {

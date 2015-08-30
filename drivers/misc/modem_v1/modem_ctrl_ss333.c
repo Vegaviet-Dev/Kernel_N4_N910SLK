@@ -35,11 +35,10 @@ static void print_mc_state(struct modem_ctl *mc)
 	int cp_reset  = gpio_get_value(mc->gpio_cp_reset);
 	int cp_active = gpio_get_value(mc->gpio_phone_active);
 	int cp_status = gpio_get_value(mc->gpio_cp_status);
-	int event = mc->crash_info;
 
-	mif_info("%s: %pf: MC state:%s on:%d reset:%d active:%d status:%d reason:%d\n",
+	mif_info("%s: %pf: MC state:%s on:%d reset:%d active:%d status:%d\n",
 		mc->name, CALLER, mc_state(mc), cp_on, cp_reset, cp_active,
-		cp_status, event);
+		cp_status);
 }
 
 static irqreturn_t cp_active_handler(int irq, void *arg)
@@ -476,7 +475,6 @@ static int modemctl_notify_call(struct notifier_block *nfb,
 	static int abnormal_rx_cnt = 0;
 
 	mif_info("got event: %ld\n", event);
-	mc->crash_info = event;
 
 	switch (event) {
 	case MDM_EVENT_CP_FORCE_RESET:
@@ -485,15 +483,6 @@ static int modemctl_notify_call(struct notifier_block *nfb,
 		if (mc->bootd && mc->bootd->modem_state_changed)
 			mc->bootd->modem_state_changed(mc->bootd, STATE_CRASH_RESET);
 		break;
-	case MDM_CRASH_PM_FAIL:
-	case MDM_CRASH_PM_CP_FAIL:
-	case MDM_CRASH_INVALID_RB:
-	case MDD_CRASH_INVALID_IOD:
-	case MDM_CRASH_INVALID_SKBCB:
-	case MDM_CRASH_INVALID_SKBIOD:
-	case MDM_CRASH_NO_MEM:
-	case MDM_CRASH_CMD_RESET:
-	case MDM_CRASH_CMD_EXIT:
 	case MDM_EVENT_CP_FORCE_CRASH:
 		ss333_force_crash_exit(mc);
 		break;
@@ -503,6 +492,9 @@ static int modemctl_notify_call(struct notifier_block *nfb,
 		} else {
 			mif_err("abnormal rx count was overflowed.\n");
 			abnormal_rx_cnt = 0;
+#ifdef DEBUG_MODEM_IF
+			ss333_force_crash_exit(mc);
+#endif
 		}
 		break;
 	}

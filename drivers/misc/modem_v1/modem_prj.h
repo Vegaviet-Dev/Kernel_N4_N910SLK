@@ -781,8 +781,6 @@ struct modem_ctl {
 
 	/* Notifier for unmount event from a link device */
 	struct notifier_block unmount_nb;
-
-	enum modemctl_event crash_info;
 };
 
 static inline bool cp_offline(struct modem_ctl *mc)

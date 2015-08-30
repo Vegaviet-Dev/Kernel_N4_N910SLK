@@ -293,6 +293,10 @@ static bool snd_ctl_remove_numid_conflict(struct snd_card *card,
 	if (card->last_numid >= UINT_MAX - count)
 		card->last_numid = 0;
 
+	/* Make sure that the ids assigned to the control do not wrap around */
+	if (card->last_numid >= UINT_MAX - count)
+		card->last_numid = 0;
+
 	list_for_each_entry(kctl, &card->controls, list) {
 		if (kctl->id.numid < card->last_numid + 1 + count &&
 		    kctl->id.numid + kctl->count > card->last_numid + 1) {
@@ -410,6 +414,9 @@ int snd_ctl_replace(struct snd_card *card, struct snd_kcontrol *kcontrol,
 		goto error;
 	}
 	id = kcontrol->id;
+	if (id.index > UINT_MAX - kcontrol->count)
+		goto error;
+
 	down_write(&card->controls_rwsem);
 	old = snd_ctl_find_id(card, &id);
 	if (!old) {
@@ -460,6 +467,7 @@ EXPORT_SYMBOL(snd_ctl_replace);
 int snd_ctl_remove(struct snd_card *card, struct snd_kcontrol *kcontrol)
 {
 	struct snd_ctl_elem_id id;
+	unsigned int count;
 	unsigned int idx;
 
 	if (snd_BUG_ON(!card || !kcontrol))
@@ -1166,9 +1174,11 @@ static int snd_ctl_elem_add(struct snd_ctl_file *file,
 	struct user_element *ue;
 	int idx, err;
 
-	if (!replace && card->user_ctl_count >= MAX_USER_CONTROLS)
-		return -ENOMEM;
 	if (info->count < 1)
+		return -EINVAL;
+	if (!*info->id.name)
+		return -EINVAL;
+	if (strnlen(info->id.name, sizeof(info->id.name)) >= sizeof(info->id.name))
 		return -EINVAL;
 	access = info->access == 0 ? SNDRV_CTL_ELEM_ACCESS_READWRITE :
 		(info->access & (SNDRV_CTL_ELEM_ACCESS_READWRITE|
@@ -1176,21 +1186,16 @@ static int snd_ctl_elem_add(struct snd_ctl_file *file,
 				 SNDRV_CTL_ELEM_ACCESS_TLV_READWRITE));
 	info->id.numid = 0;
 	memset(&kctl, 0, sizeof(kctl));
-	down_write(&card->controls_rwsem);
-	_kctl = snd_ctl_find_id(card, &info->id);
-	err = 0;
-	if (_kctl) {
-		if (replace)
-			err = snd_ctl_remove(card, _kctl);
-		else
-			err = -EBUSY;
-	} else {
-		if (replace)
-			err = -ENOENT;
+
+	if (replace) {
+		err = snd_ctl_remove_user_ctl(file, &info->id);
+		if (err)
+			return err;
 	}
-	up_write(&card->controls_rwsem);
-	if (err < 0)
-		return err;
+
+	if (card->user_ctl_count >= MAX_USER_CONTROLS)
+		return -ENOMEM;
+
 	memcpy(&kctl.id, &info->id, sizeof(info->id));
 	kctl.count = info->owner ? info->owner : 1;
 	access |= SNDRV_CTL_ELEM_ACCESS_USER;

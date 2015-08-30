@@ -107,6 +107,7 @@ struct cpufreq_policy {
 	unsigned int		policy; /* see above */
 	struct cpufreq_governor	*governor; /* see below */
 	void			*governor_data;
+	bool			governor_enabled; /* governor start/stop flag */
 
 	struct work_struct	update; /* if update_policy() needs to be
 					 * called, but you're in IRQ context */
@@ -225,7 +226,6 @@ void cpufreq_unregister_governor(struct cpufreq_governor *governor);
 
 #define CPUFREQ_RELATION_L 0  /* lowest frequency at or above target */
 #define CPUFREQ_RELATION_H 1  /* highest frequency below or at target */
-#define CPUFREQ_RELATION_C 2 /* closest frequency to target */
 
 struct freq_attr;
 
@@ -295,13 +295,6 @@ static inline void cpufreq_verify_within_limits(struct cpufreq_policy *policy, u
 	if (policy->min > policy->max)
 		policy->min = policy->max;
 	return;
-}
-
-static inline void
-cpufreq_verify_within_cpu_limits(struct cpufreq_policy *policy)
-{
-	cpufreq_verify_within_limits(policy, policy->cpuinfo.min_freq,
-			policy->cpuinfo.max_freq);
 }
 
 struct freq_attr {

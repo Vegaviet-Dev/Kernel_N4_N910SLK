@@ -40,15 +40,6 @@
 
 static bool pa_err_6 = false;
 
-static unsigned int credit_cnt = 10;
-module_param(credit_cnt, int, S_IRUGO | S_IWUSR | S_IWGRP);
-MODULE_PARM_DESC(credit_cnt, "credit waiting count");
-
-static int pa_err_cnt = 0;
-static int roe_cnt = 0;
-static int mnt_cnt = 0;
-static int mnt_fail_cnt = 0;
-
 static int poll_bit_set(void __iomem *ptr, u32 val, int timeout)
 {
 	u32 reg;
@@ -175,10 +166,8 @@ static int exynos_lli_reg_dump(struct mipi_lli *lli)
 
 static int exynos_lli_debug_info(struct mipi_lli *lli)
 {
-	if(lli->is_debug_possible) {
-		exynos_lli_reg_dump(lli);
-		schedule_work(&lli->wq_print_dump);
-	}
+	exynos_lli_reg_dump(lli);
+	schedule_work(&lli->wq_print_dump);
 
 	return 0;
 }
@@ -236,7 +225,6 @@ static int exynos_lli_get_clk_info(struct mipi_lli *lli)
 static void exynos_lli_system_config(struct mipi_lli *lli)
 {
 	if (lli->sys_regs) {
-		lli->sb_mask_active = true;
 		writel(SIG_INT_MASK0, lli->sys_regs + CPIF_LLI_SIG_INT_MASK0);
 		writel(SIG_INT_MASK1, lli->sys_regs + CPIF_LLI_SIG_INT_MASK1);
 	}
@@ -339,8 +327,7 @@ static int exynos_lli_setting(struct mipi_lli *lli)
 
 	writel(0x40, lli->regs + EXYNOS_PA_NACK_RTT);
 	writel(0x0, lli->regs + EXYNOS_PA_MK0_INSERTION_ENABLE);
-#if defined(CONFIG_UMTS_MODEM_SS300) || defined(CONFIG_UMTS_MODEM_SS303) || \
-    defined(CONFIG_UMTS_MODEM_SS333)
+#if defined(CONFIG_UMTS_MODEM_SS300)
 	writel((128<<0) | (15<<8) | (1<<12), lli->regs + EXYNOS_PA_MK0_CONTROL);
 #else
 	writel((128<<0) | (1<<12), lli->regs + EXYNOS_PA_MK0_CONTROL);
@@ -573,33 +560,11 @@ static int exynos_lli_intr_enable(struct mipi_lli *lli)
 	return 0;
 }
 
-static int exynos_lli_mask_sb_intr(struct mipi_lli *lli, bool flag)
-{
-	spin_lock(&lli->lock);
-
-	if(flag) {
-		if (lli->sb_mask_active) {
-			writel(SIG_INT_MASK1, lli->sys_regs + CPIF_LLI_SIG_INT_MASK0);
-			lli->sb_mask_active = false;
-		}
-	} else {
-		if (!lli->sb_mask_active) {
-			writel(SIG_INT_MASK0, lli->sys_regs + CPIF_LLI_SIG_INT_MASK0);
-			lli->sb_mask_active = true;
-		}
-	 }
-
-	spin_unlock(&lli->lock);
-
-	return 0;
-}
-
 #ifdef CONFIG_PM_SLEEP
 /* exynos_lli_suspend must call by modem_if */
 static int exynos_lli_suspend(struct mipi_lli *lli)
 {
 	lli->is_suspended = true;
-	lli->is_debug_possible = false;
 
 	/* masking all of lli interrupts */
 	exynos_lli_system_config(lli);
@@ -812,81 +777,18 @@ const struct lli_driver exynos_lli_driver = {
 	.loopback_test = exynos_lli_loopback_test,
 	.debug_info = exynos_lli_debug_info,
 	.intr_enable = exynos_lli_intr_enable,
-	.mask_sb_intr = exynos_lli_mask_sb_intr,
 	.suspend = exynos_lli_suspend,
 	.resume = exynos_lli_resume,
 };
-
-static irqreturn_t exynos_mipi_lli_threaded_irq(int irq, void *_dev)
-{
-	struct device *dev = _dev;
-	struct mipi_lli *lli = dev_get_drvdata(dev);
-	struct exynos_mphy *phy;
-	struct link_pm_svc *pm_svc = mipi_lli_get_pm_svc();
-
-	static bool is_first = true;
-	int credit = 0;
-	int rx_fsm_state, tx_fsm_state, afc_val, csa_status;
-
-	phy = dev_get_drvdata(lli->mphy);
-
-	rx_fsm_state = readl(phy->loc_regs + PHY_RX_FSM_STATE(0));
-	tx_fsm_state = readl(phy->loc_regs + PHY_TX_FSM_STATE(0));
-	csa_status = readl(lli->regs + EXYNOS_DME_CSA_SYSTEM_STATUS);
-	credit = readl(lli->regs + EXYNOS_DL_DBG_TX_CREDTIS);
-
-	writel(0x1, lli->regs + EXYNOS_PA_MPHY_CMN_ENABLE);
-	afc_val = readl(phy->loc_regs + (0x27*4));
-	writel(0x0, lli->regs + EXYNOS_PA_MPHY_CMN_ENABLE);
-
-	if (is_first) {
-		phy->afc_val = afc_val;
-		is_first = false;
-	}
-
-	dev_err(dev, "rx=%x, tx=%x, afc=%x, status=%x, pa_err=%x\n"
-			,rx_fsm_state, tx_fsm_state, afc_val, csa_status, pa_err_cnt);
-
-	if (!credit) {
-		u32 delay = 0;
-		for (delay = 0 ; delay < credit_cnt ; delay++) {
-			usleep_range(1000, 1000);
-			credit = readl(lli->regs + EXYNOS_DL_DBG_TX_CREDTIS);
-
-			if (credit)
-				break;
-		}
-		dev_err(dev, "waiting %dms for CREDITS: rx=%x, tx=%x\n", delay,
-				readl(phy->loc_regs + PHY_RX_FSM_STATE(0)),
-				readl(phy->loc_regs + PHY_TX_FSM_STATE(0)));
-
-		if (!credit) {
-			dev_err(dev, "ERR: Mount failed : %d\n", ++mnt_fail_cnt);
-			mipi_lli_debug_info();
-			dev_err(dev, "DUMP: ok:%d fail:%d roe:%d",
-					mnt_cnt, mnt_fail_cnt, roe_cnt);
-
-			return IRQ_HANDLED;
-		}
-	}
-
-	pa_err_6 = false;
-
-	atomic_set(&lli->state, LLI_MOUNTED);
-	atomic_inc(&lli->mnt_cnt);
-	dev_err(dev, "Mount (ok:%d fail:%d roe:%d pa_err:%d)\n",
-			++mnt_cnt, mnt_fail_cnt, roe_cnt, pa_err_cnt);
-
-	if (pm_svc && pm_svc->mount_cb)
-		pm_svc->mount_cb(pm_svc->owner);
-
-	return IRQ_HANDLED;
-}
 
 static irqreturn_t exynos_mipi_lli_irq(int irq, void *_dev)
 {
 	struct device *dev = _dev;
 	struct mipi_lli *lli = dev_get_drvdata(dev);
+	static int pa_err_cnt = 0;
+	static int roe_cnt = 0;
+	static int mnt_cnt = 0;
+	static int mnt_fail_cnt = 0;
 	int status;
 	struct exynos_mphy *phy;
 	struct link_pm_svc *pm_svc = mipi_lli_get_pm_svc();
@@ -897,8 +799,6 @@ static irqreturn_t exynos_mipi_lli_irq(int irq, void *_dev)
 	if (status & INTR_SW_RESET_DONE) {
 		dev_err(dev, "SW_RESET_DONE ++\n");
 		exynos_lli_setting(lli);
-
-		lli->is_debug_possible = true;
 
 		if (status & INTR_RESET_ON_ERROR_DETECTED) {
 			dev_err(dev, "LLI is wating for mount after LINE-RESET..\n");
@@ -980,10 +880,60 @@ static irqreturn_t exynos_mipi_lli_irq(int irq, void *_dev)
 	}
 
 	if (status & INTR_LLI_MOUNT_DONE) {
-		writel(status, lli->regs + EXYNOS_DME_LLI_INTR_STATUS);
-		dev_err(dev, "Mount intr\n");
+		static bool is_first = true;
+		int credit = 0;
+		int rx_fsm_state, tx_fsm_state, afc_val, csa_status;
 
-		return IRQ_WAKE_THREAD;
+		rx_fsm_state = readl(phy->loc_regs + PHY_RX_FSM_STATE(0));
+		tx_fsm_state = readl(phy->loc_regs + PHY_TX_FSM_STATE(0));
+		csa_status = readl(lli->regs + EXYNOS_DME_CSA_SYSTEM_STATUS);
+		credit = readl(lli->regs + EXYNOS_DL_DBG_TX_CREDTIS);
+		writel(0x1, lli->regs + EXYNOS_PA_MPHY_CMN_ENABLE);
+		afc_val = readl(phy->loc_regs + (0x27*4));
+		writel(0x0, lli->regs + EXYNOS_PA_MPHY_CMN_ENABLE);
+
+		if (is_first) {
+			phy->afc_val = afc_val;
+			is_first = false;
+		}
+
+		dev_err(dev, "rx=%x, tx=%x, afc=%x, status=%x, pa_err=%x\n"
+				,rx_fsm_state, tx_fsm_state, afc_val,
+				csa_status, pa_err_cnt);
+
+		if (!credit) {
+			u32 udelay = 0;
+			for (udelay = 0 ; udelay < 200 ; udelay++) {
+				udelay(1);
+				credit = readl(lli->regs + EXYNOS_DL_DBG_TX_CREDTIS);
+
+				if (credit)
+					break;
+			}
+			dev_err(dev, "waiting %dus for CREDITS: tx=%x, rx=%x\n",
+					udelay,
+					readl(phy->loc_regs + PHY_RX_FSM_STATE(0)),
+					readl(phy->loc_regs + PHY_TX_FSM_STATE(0)));
+
+			if (!credit) {
+				dev_err(dev, "ERR: Mount failed : %d\n",
+						++mnt_fail_cnt);
+				mipi_lli_debug_info();
+				writel(status, lli->regs + EXYNOS_DME_LLI_INTR_STATUS);
+				dev_err(dev, "DUMP: ok:%d fail:%d roe:%d",
+						mnt_cnt, mnt_fail_cnt, roe_cnt);
+				return IRQ_HANDLED;
+			}
+		}
+		pa_err_6 = false;
+
+		atomic_set(&lli->state, LLI_MOUNTED);
+		atomic_inc(&lli->mnt_cnt);
+		dev_err(dev, "Mount (ok:%d fail:%d roe:%d pa_err:%d)\n",
+				++mnt_cnt, mnt_fail_cnt, roe_cnt, pa_err_cnt);
+
+		if (pm_svc && pm_svc->mount_cb)
+			pm_svc->mount_cb(pm_svc->owner);
 	}
 
 	if (status & INTR_LLI_UNMOUNT_DONE) {
@@ -993,8 +943,6 @@ static irqreturn_t exynos_mipi_lli_irq(int irq, void *_dev)
 			exynos_lli_init(lli);
 
 		dev_err(dev, "Unmount\n");
-
-		lli->is_debug_possible = false;
 
 		if (pm_svc && pm_svc->unmount_cb)
 			pm_svc->unmount_cb(pm_svc->owner);
@@ -1145,8 +1093,7 @@ static int exynos_mipi_lli_probe(struct platform_device *pdev)
 
 	mipi_lli_get_setting(lli);
 
-	ret = request_threaded_irq(irq, exynos_mipi_lli_irq,
-			exynos_mipi_lli_threaded_irq, 0, dev_name(dev), dev);
+	ret = request_irq(irq, exynos_mipi_lli_irq, 0, dev_name(dev), dev);
 	if (ret < 0)
 		return ret;
 
@@ -1187,8 +1134,6 @@ static int exynos_mipi_lli_probe(struct platform_device *pdev)
 	dev_info(dev, "dout_mif_pre= %ld\n", dout_mif_pre->rate);
 
 	dev_info(dev, "Registered MIPI-LLI interface\n");
-
-	lli->is_debug_possible = false;
 
 	return ret;
 }

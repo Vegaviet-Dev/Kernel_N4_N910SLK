@@ -39,7 +39,7 @@ static int mmc_prep_request(struct request_queue *q, struct request *req)
 		return BLKPREP_KILL;
 	}
 
-	if (mq && mmc_card_removed(mq->card))
+	if (mq && (mmc_card_removed(mq->card) || mmc_access_rpmb(mq)))
 		return BLKPREP_KILL;
 
 	req->cmd_flags |= REQ_DONTPREP;
@@ -99,6 +99,7 @@ static int mmc_queue_thread(void *d)
 	int rt, issue;
 
 	current->flags |= PF_MEMALLOC;
+	set_wake_up_idle(true);
 
 #if defined(CONFIG_SOC_EXYNOS5430) || defined(CONFIG_SOC_EXYNOS5433)
 	set_cpus_allowed_ptr(current, cpu_coregroup_mask(0));

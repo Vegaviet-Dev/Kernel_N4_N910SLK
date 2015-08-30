@@ -98,8 +98,6 @@ static atomic_t timer_log_idx[NR_CPUS];
 #ifdef CONFIG_SEC_DEBUG_RT_THROTTLE_ACTIVE
 #define AUX_LOG_IRQ_MAX 128
 #endif
-#define AUX_LOG_WIFI_MAX 256
-
 #define AUX_LOG_LENGTH 128
 
 struct auxiliary_info {
@@ -115,7 +113,6 @@ struct auxiliary_log {
 #ifdef CONFIG_SEC_DEBUG_RT_THROTTLE_ACTIVE
 	struct auxiliary_info IrqLog[AUX_LOG_IRQ_MAX];
 #endif
-	struct auxiliary_info WifiLog[AUX_LOG_WIFI_MAX];
 };
 
 #else
@@ -329,7 +326,6 @@ static atomic_t gExcpAuxThermalLogIdx = ATOMIC_INIT(-1);
 #ifdef CONFIG_SEC_DEBUG_RT_THROTTLE_ACTIVE
 static atomic_t gExcpAuxIrqLogIdx = ATOMIC_INIT(-1);
 #endif
-static atomic_t gExcpAuxWifiLogIdx = ATOMIC_INIT(-1);
 #endif
 
 static int bStopLogging;
@@ -1204,15 +1200,6 @@ void sec_debug_aux_log(int idx, char *fmt, ...)
 			buf, AUX_LOG_LENGTH);
 		break;
 #endif
-	case SEC_DEBUG_AUXLOG_WIFI:
-		i = atomic_inc_return(&gExcpAuxWifiLogIdx)
-			& (AUX_LOG_WIFI_MAX - 1);
-		(*gExcpAuxLogPtr).WifiLog[i].time = cpu_clock(cpu);
-		(*gExcpAuxLogPtr).WifiLog[i].cpu = cpu;
-		strncpy((*gExcpAuxLogPtr).WifiLog[i].log,
-			buf, AUX_LOG_LENGTH);
-		break;
-
 	default:
 		break;
 	}

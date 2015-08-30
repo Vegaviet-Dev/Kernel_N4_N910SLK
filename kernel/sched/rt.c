@@ -899,7 +899,7 @@ static int sched_rt_runtime_exceeded(struct rt_rq *rt_rq)
 				sec_debug_aux_log(SEC_DEBUG_AUXLOG_IRQ, "TSK:%llu %s[%d]", rt_rq->rq->clock_task - rt_rq->rt_time, current->comm, current->pid);
 #endif
 
-				printk_sched("sched: RT throttling activated - [%d:%s]rq->clock_task: %llu rt_time:%llu\n",
+				printk_deferred("sched: RT throttling activated - [%d:%s]rq->clock_task: %llu rt_time:%llu\n",
 						current->pid, current->comm, rt_rq->rq->clock_task, rt_rq->rt_time);
 			}
 		} else {
@@ -972,6 +972,13 @@ inc_rt_prio_smp(struct rt_rq *rt_rq, int prio, int prev_prio)
 {
 	struct rq *rq = rq_of_rt_rq(rt_rq);
 
+#ifdef CONFIG_RT_GROUP_SCHED
+	/*
+	 * Change rq's cpupri only if rt_rq is the top queue.
+	 */
+	if (&rq->rt != rt_rq)
+		return;
+#endif
 	if (rq->online && prio < prev_prio)
 		cpupri_set(&rq->rd->cpupri, rq->cpu, prio);
 }
@@ -981,6 +988,13 @@ dec_rt_prio_smp(struct rt_rq *rt_rq, int prio, int prev_prio)
 {
 	struct rq *rq = rq_of_rt_rq(rt_rq);
 
+#ifdef CONFIG_RT_GROUP_SCHED
+	/*
+	 * Change rq's cpupri only if rt_rq is the top queue.
+	 */
+	if (&rq->rt != rt_rq)
+		return;
+#endif
 	if (rq->online && rt_rq->highest_prio.curr != prev_prio)
 		cpupri_set(&rq->rd->cpupri, rq->cpu, rt_rq->highest_prio.curr);
 }
@@ -1391,6 +1405,16 @@ static struct task_struct *_pick_next_task_rt(struct rq *rq)
 		BUG_ON(!rt_se);
 		rt_rq = group_rt_rq(rt_se);
 	} while (rt_rq);
+
+	/*
+	 * Force update of rq->clock_task in case we failed to do so in
+	 * put_prev_task. A stale value can cause us to over-charge execution
+	 * time to real-time task, that could trigger throttling unnecessarily
+	 */
+	if (rq->skip_clock_update > 0) {
+		rq->skip_clock_update = 0;
+		update_rq_clock(rq);
+	}
 
 	p = rt_task_of(rt_se);
 	p->se.exec_start = rq->clock_task;

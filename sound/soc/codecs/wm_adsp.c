@@ -1865,6 +1865,7 @@ out_async:
 	}
 
 out_fw:
+	regmap_async_complete(regmap);
 	release_firmware(firmware);
 	wm_adsp_buf_free(&buf_list);
 out:
@@ -1980,6 +1981,127 @@ err:
 }
 EXPORT_SYMBOL_GPL(wm_adsp1_event);
 
+void wm_adsp2_dbg_regs(struct wm_adsp *dsp)
+{
+	int ret, val, i, reg;
+	adsp_info(dsp, "================================================\n");
+
+	ret = regmap_read(dsp->regmap, 0x101, &val);
+	if (ret != 0) {
+		adsp_info(dsp, "Failed to read reg! %s:%d\n",
+			 __func__,
+			 __LINE__);
+		return;
+	}
+
+	adsp_info(dsp, "SYSCLK [0x0101]: 0x%04x\n", val);
+
+	for (i = 0; i < 9; i++) {
+		reg = 0x171 + i;
+		ret = regmap_read(dsp->regmap, reg, &val);
+		if (ret != 0) {
+			adsp_info(dsp, "Failed to read reg! %s:%d\n",
+				 __func__,
+				 __LINE__);
+			return;
+		}
+
+		adsp_info(dsp, "FLL settings [0x%04x]: 0x%04x\n", reg, val);
+	}
+
+	for (i = 0; i < 7; i++) {
+		reg = 0x1100 + i;
+		ret = regmap_read(dsp->regmap, reg, &val);
+		if (ret != 0) {
+			adsp_info(dsp, "Failed to read reg! %s:%d\n",
+				 __func__,
+				 __LINE__);
+			return;
+		}
+
+		adsp_info(dsp, "DSP1 Status %d [0x%04x]: 0x%04x\n", i,
+			 reg, val);
+	}
+
+	for (i = 0; i < 7; i++) {
+		reg = 0x1200 + i;
+		ret = regmap_read(dsp->regmap, reg, &val);
+		if (ret != 0) {
+			adsp_info(dsp, "Failed to read reg! %s:%d\n",
+				 __func__,
+				 __LINE__);
+			return;
+		}
+
+		adsp_info(dsp, "DSP2 Status %d [0x%04x]: 0x%04x\n", i,
+			 reg, val);
+	}
+
+	for (i = 0; i < 7; i++) {
+		reg = 0x1300 + i;
+		ret = regmap_read(dsp->regmap, reg, &val);
+		if (ret != 0) {
+			adsp_info(dsp, "Failed to read reg! %s:%d\n",
+				 __func__,
+				 __LINE__);
+			return;
+		}
+
+		adsp_info(dsp, "DSP3 Status %d [0x%04x]: 0x%04x\n", i,
+			 reg, val);
+	}
+
+	for (i = 0; i < 7; i++) {
+		reg = 0x1400 + i;
+		ret = regmap_read(dsp->regmap, reg, &val);
+		if (ret != 0) {
+			adsp_info(dsp, "Failed to read reg! %s:%d\n",
+				 __func__,
+				 __LINE__);
+			return;
+		}
+
+		adsp_info(dsp, "DSP4 Status %d [0x%04x]: 0x%04x\n", i,
+			 reg, val);
+	}
+
+	ret = regmap_read(dsp->regmap, 0x220, &val);
+	if (ret != 0) {
+		adsp_info(dsp, "Failed to read reg! %s:%d\n",
+			 __func__,
+			 __LINE__);
+		return;
+	}
+
+	adsp_info(dsp, "POWER MGMT [0x0220]: 0x%04x\n", val);
+
+	for (i = 0; i < 9; i++) {
+		reg = 0xd20 + i;
+		ret = regmap_read(dsp->regmap, reg, &val);
+		if (ret != 0) {
+			adsp_info(dsp, "Failed to read reg! %s:%d\n",
+				 __func__,
+				 __LINE__);
+			return;
+		}
+
+		adsp_info(dsp, "Interrupt Raw Status %d [0x%04x]: 0x%04x\n",
+			 i, reg, val);
+	}
+
+	ret = regmap_read(dsp->regmap, 0xd55, &val);
+	if (ret != 0) {
+		adsp_info(dsp, "Failed to read reg! %s:%d\n",
+			 __func__,
+			 __LINE__);
+		return;
+	}
+
+	adsp_info(dsp, "AOD IRQ Raw Status [0x0d55]: 0x%04x\n", val);
+
+	adsp_info(dsp, "=================================================\n");
+}
+
 static int wm_adsp2_ena(struct wm_adsp *dsp)
 {
 	unsigned int val;
@@ -2005,6 +2127,7 @@ static int wm_adsp2_ena(struct wm_adsp *dsp)
 
 	if (!(val & ADSP2_RAM_RDY)) {
 		adsp_err(dsp, "Failed to start DSP RAM\n");
+		wm_adsp2_dbg_regs(dsp);
 		return -EBUSY;
 	}
 
