@@ -24,14 +24,28 @@
  * Note that we probably achieve closer to the 100MB/s target with
  * the core clock switching.
  */
-ENTRY(copy_page)
-		stmfd	sp!, {r4, lr}			@	2
-	PLD(	pld	[r1, #0]		)
-	PLD(	pld	[r1, #L1_CACHE_BYTES]		)
-		mov	r2, #COPY_COUNT			@	1
-		ldmia	r1!, {r3, r4, ip, lr}		@	4+1
-1:	PLD(	pld	[r1, #2 * L1_CACHE_BYTES])
-	PLD(	pld	[r1, #3 * L1_CACHE_BYTES])
+
+#define COPY_COUNT (PAGE_SZ / (L1_CACHE_BYTES))
+
+		.text
+	ARM(	.p2align 5	)
+	THUMB(	.p2align 2	)
+ ENTRY(copy_page)
+		stmfd	sp!, {r4-r8, lr}
+ 	PLD(	pld	[r1, #0]		)		 	PLD(	pld	[r1, #0]		)
+ 	PLD(	pld	[r1, #L1_CACHE_BYTES]		)		 	PLD(	pld	[r1, #L1_CACHE_BYTES]		)
+#if PREFETCH_DISTANCE > 2
+	PLD(	pld	[r1, #2 * L1_CACHE_BYTES]	)
+#if PREFETCH_DISTANCE > 3
+	PLD(	pld	[r1, #3 * L1_CACHE_BYTES]	)
+#if PREFETCH_DISTANCE > 4
+	PLD(	pld	[r1, #4 * L1_CACHE_BYTES]	)
+#endif
+#endif
+#endif
+	PLD(	movs	r2, #(COPY_COUNT - PREFETCH_DISTANCE)	)
+	NO_PLD(	mov	r2, #COPY_COUNT				)
+1:	PLD(	pld	[r1, #PREFETCH_DISTANCE * L1_CACHE_BYTES])
 2:
 	.rept	(2 * L1_CACHE_BYTES / 16 - 1)
 		stmia	r0!, {r3, r4, ip, lr}		@	4

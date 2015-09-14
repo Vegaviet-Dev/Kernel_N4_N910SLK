@@ -7,6 +7,23 @@
 #define L1_CACHE_SHIFT		CONFIG_ARM_L1_CACHE_SHIFT
 #define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
 
+#if L1_CACHE_BYTES == 64
+/*
+ * This value was calibrated on a Cortex A8-based SOC with a 32-bit
+ * DDR3 interface. Other Cortex cores and architectures may benefit
+ * from a different setting.
+ */
+#define PREFETCH_DISTANCE 3
+#else
+/*
+ * This value was calibrated on the ARM v6-based SOC used in the Raspbery
+ * Pi. Other architectures may benefit from a different setting.
+ */
+#define PREFETCH_DISTANCE 3
+#endif
+
+
+
 /*
  * Memory returned by kmalloc() may be used for DMA, so we must make
  * sure that all such allocations are cache aligned. Otherwise,
