@@ -75,12 +75,12 @@ static struct apll_freq exynos5433_apll_freq_CA7[] = {
 	 * PLL M, P, S
 	 */
 	APLL_FREQ(2000, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 500, 6, 0),  /* ARM L0: 2.0GHz   */
-	APLL_FREQ(1900, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 475, 6, 0),  /* ARM L1: 1.9GHz  */
-	APLL_FREQ(1800, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 375, 5, 0),  /* ARM L2: 1.8GHz  */
+	APLL_FREQ(1900, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 475, 6, 0),  /* ARM L1: 1.9GMHz  */
+	APLL_FREQ(1800, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 375, 5, 0),  /* ARM L2: 1.8GMHz  */
 	APLL_FREQ(1700, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 425, 6, 0),  /* ARM L3: 1.7GHz   */
 	APLL_FREQ(1600, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 400, 6, 0),  /* ARM L4: 1.6GHz   */
-	APLL_FREQ(1500, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 250, 4, 0),  /* ARM L5: 1.5GHz  */
-	APLL_FREQ(1400, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 350, 6, 0),  /* ARM L6: 1.4GHz  */
+	APLL_FREQ(1500, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 250, 4, 0),  /* ARM L5: 1.5GMHz  */
+	APLL_FREQ(1400, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 350, 6, 0),  /* ARM L6: 1.4GMHz  */
 	APLL_FREQ(1300, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 325, 6, 0),  /* ARM L7: 1.3GHz   */
 	APLL_FREQ(1200, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 500, 5, 1),  /* ARM L8: 1.2GHz   */
 	APLL_FREQ(1100, 0, 0, 2, 7, 7, 7, 3, 0, 1, 7, 0, 550, 6, 1),  /* ARM L9: 1.1GHz   */
@@ -138,9 +138,9 @@ static int exynos5433_bus_table_CA7[CPUFREQ_LEVEL_END_CA7] = {
 	413000,		/* 700 MHz */
 	413000,		/* 600 MHz */
 	413000,		/* 500 MHz */
-	413000,		/* 400 MHz */
-	413000,		/* 300 MHz */
-	413000,		/* 200 MHz */
+	0,		/* 400 MHz */
+	0,		/* 300 MHz */
+	0,		/* 200 MHz */
 };
 
 static void exynos5433_set_clkdiv_CA7(unsigned int div_index)
@@ -307,8 +307,8 @@ static void __init set_volt_table_CA7(void)
 				exynos5433_abb_table_CA7[i]);
 	}
 
-	max_support_idx_CA7 = L2;	/* 1.8GHz */
-	min_support_idx_CA7 = L18;	/* 200MHz */
+	max_support_idx_CA7 = L7;	/* 1.3GHz */
+	min_support_idx_CA7 = L16;	/* 400MHz */
 	pr_info("CPUFREQ of CA7 max_freq : L%d %u khz\n", max_support_idx_CA7,
 		exynos5433_freq_table_CA7[max_support_idx_CA7].frequency);
 	pr_info("CPUFREQ of CA7 min_freq : L%d %u khz\n", min_support_idx_CA7,

@@ -43,18 +43,14 @@ extern struct kbase_device *pkbdev;
 
 /*  clk,vol,abb,min,max,down stay,time_in_state,pm_qos mem,pm_qos int,pm_qos cpu_kfc_min,pm_qos cpu_egl_max */
 static gpu_dvfs_info gpu_dvfs_table_default[] = {
-        {800, 1150000, 0, 98, 100, 1, 0, 825000, 400000, 1300000, 1300000},
-        {730, 1150000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1300000},
- 	{700, 1150000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1300000},
-        {667, 1150000, 0, 78,  85, 1, 0, 825000, 400000, 1300000, 1300000},
-	{600, 1150000, 0, 78,  85, 1, 0, 825000, 400000, 1300000, 1300000},
-	{550, 1125000, 0, 78,  85, 1, 0, 825000, 400000, 1300000, 1800000},
-	{500, 1075000, 0, 78,  85, 1, 0, 825000, 400000, 1300000, 1800000},
-	{420, 1025000, 0, 70,  85, 1, 0, 667000, 200000,  900000, 1800000},
-	{350, 1025000, 0, 70,  85, 1, 0, 543000, 160000,       0, CPU_MAX},
-	{266, 1000000, 0, 70,  85, 1, 0, 413000, 133000,       0, CPU_MAX},
-	{160, 1000000, 0, 70,  85, 1, 0, 272000, 133000,       0, CPU_MAX},
-	{100, 1000000, 0,  0,  85, 1, 0, 272000, 133000,       0, CPU_MAX},
+	{700, 1150000, 0, 98, 100, 1, 0, 825000, 400000, 1300000, 1300000},
+	{600, 1150000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1300000},
+	{550, 1125000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1800000},
+	{500, 1075000, 0, 98,  99, 1, 0, 825000, 400000, 1300000, 1800000},
+	{420, 1025000, 0, 80,  99, 1, 0, 667000, 200000,  900000, 1800000},
+	{350, 1025000, 0, 80,  90, 1, 0, 543000, 160000,       0, CPU_MAX},
+	{266, 1000000, 0, 80,  90, 3, 0, 413000, 133000,       0, CPU_MAX},
+	{160, 1000000, 0,  0,  90, 1, 0, 272000, 133000,       0, CPU_MAX},
 };
 
 static int available_max_clock[] = {GPU_L2, GPU_L2, GPU_L0, GPU_L0, GPU_L0};
@@ -63,7 +59,6 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_MAX_CLOCK, 700},
 	{GPU_MAX_CLOCK_LIMIT, 600},
 	{GPU_MIN_CLOCK, 160},
-        {GPU_MIN_CLOCK_LIMIT, 100},
 	{GPU_DVFS_START_CLOCK, 266},
 	{GPU_DVFS_BL_CONFIG_CLOCK, 266},
 	{GPU_GOVERNOR_START_CLOCK_DEFAULT, 266},
@@ -96,8 +91,8 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_PERF_GATHERING, 0},
 	{GPU_HWCNT_GATHERING, 1},
 	{GPU_HWCNT_GPR, 1},
-	{GPU_RUNTIME_PM_DELAY_TIME, 30},
-	{GPU_DVFS_POLLING_TIME, 30},
+	{GPU_RUNTIME_PM_DELAY_TIME, 50},
+	{GPU_DVFS_POLLING_TIME, 100},
 	{GPU_DEBUG_LEVEL, DVFS_WARNING},
 	{GPU_TRACE_LEVEL, TRACE_ALL},
 };
